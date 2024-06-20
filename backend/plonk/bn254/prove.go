@@ -50,8 +50,9 @@ import (
 	"github.com/consensys/gnark/logger"
 
 	iciclecore "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
-	// iciclebn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
-	// iciclemsm "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/msm"
+	iciclecr "github.com/ingonyama-zk/icicle/v2/wrappers/golang/cuda_runtime"
+	iciclebn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
+	iciclentt "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/ntt"
 )
 
 const (
@@ -247,6 +248,14 @@ func newInstance(ctx context.Context, spr *cs.SparseR1CS, pk *ProvingKey, fullWi
 	nbConstraints := spr.GetNbConstraints()
 	sizeSystem := uint64(nbConstraints + len(spr.Public)) // len(spr.Public) is for the placeholder constraints
 	s.domain0 = fft.NewDomain(sizeSystem)
+
+	gen, _ := fft.Generator(3 * s.domain0.Cardinality)
+	genBits := gen.Bits()
+	limbs := iciclecore.ConvertUint64ArrToUint32Arr(genBits[:])
+	var rouIcicle iciclebn254.ScalarField
+	rouIcicle.FromLimbs(limbs)
+	iciclectx, _ := iciclecr.GetDefaultDeviceContext()
+	iciclentt.InitDomain(rouIcicle, iciclectx, true)
 
 	// h, the quotient polynomial is of degree 3(n+1)+2, so it's in a 3(n+2) dim vector space,
 	// the domain is the next power of 2 superior to 3(n+2). 4*domainNum is enough in all cases
