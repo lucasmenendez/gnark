@@ -19,6 +19,7 @@ package plonk
 import (
 	"fmt"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/fft"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/iop"
@@ -26,6 +27,7 @@ import (
 	"github.com/consensys/gnark/backend/plonk/internal"
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
+	iciclecore "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
 )
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -81,6 +83,7 @@ type Trace struct {
 // ProvingKey stores the data needed to generate a proof
 type ProvingKey struct {
 	Kzg, KzgLagrange kzg.ProvingKey
+	KzgIcicle, KzgLagrangeIcicle iciclecore.DeviceSlice
 
 	// Verifying Key is embedded into the proving key (needed by Prove)
 	Vk *VerifyingKey
@@ -117,7 +120,9 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 	vk.NbPublicVariables = uint64(len(spr.Public))
 
 	pk.Kzg.G1 = srs.Pk.G1[:int(vk.Size)+3]
+	(iciclecore.HostSlice[bn254.G1Affine])(pk.Kzg.G1).CopyToDevice(&pk.KzgIcicle, true)
 	pk.KzgLagrange.G1 = srsLagrange.Pk.G1
+	(iciclecore.HostSlice[bn254.G1Affine])(pk.KzgLagrange.G1).CopyToDevice(&pk.KzgLagrangeIcicle, true)
 	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis

@@ -29,8 +29,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/consensys/gnark-crypto/ecc"
-
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -50,6 +48,10 @@ import (
 	fcs "github.com/consensys/gnark/frontend/cs"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
+
+	iciclecore "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
+	// iciclebn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
+	// iciclemsm "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254/msm"
 )
 
 const (
@@ -302,9 +304,8 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 		return err
 	}
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
-	if s.proof.Bsb22Commitments[commDepth], err = kzg.Commit(s.cCommitments[commDepth].Coefficients(), s.pk.KzgLagrange); err != nil {
-		return err
-	}
+	coeffs := s.cCommitments[commDepth].Coefficients()
+	s.proof.Bsb22Commitments[commDepth] = IcicleCommit(coeffs, s.pk.KzgLagrangeIcicle.RangeTo(len(coeffs), false))
 
 	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
@@ -449,12 +450,11 @@ func (s *instance) deriveGammaAndBeta() error {
 // and add the contribution of a blinding polynomial b (small degree)
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
-
-	commit, err = kzg.Commit(p.Coefficients(), s.pk.KzgLagrange)
+	commit = IcicleCommit(p.Coefficients(), s.pk.KzgLagrangeIcicle)
 
 	// we add in the blinding contribution
 	n := int(s.domain0.Cardinality)
-	cb := commitBlindingFactor(n, b, s.pk.Kzg)
+	cb := commitBlindingFactor(n, b, s.pk.KzgIcicle)
 	commit.Add(&commit, &cb)
 
 	return
@@ -535,7 +535,7 @@ func (s *instance) computeQuotient() (err error) {
 	}
 
 	// commit to h
-	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.Kzg); err != nil {
+	if err := commitToQuotient(s.h1(), s.h2(), s.h3(), s.proof, s.pk.KzgIcicle); err != nil {
 		return err
 	}
 
@@ -685,11 +685,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 		s.pk,
 	)
 
-	var err error
-	s.linearizedPolynomialDigest, err = kzg.Commit(s.linearizedPolynomial, s.pk.Kzg, runtime.NumCPU()*2)
-	if err != nil {
-		return err
-	}
+	s.linearizedPolynomialDigest = IcicleCommit(s.linearizedPolynomial, s.pk.KzgIcicle.RangeTo(len(s.linearizedPolynomial), false))
 	close(s.chLinearizedPolynomial)
 	return nil
 }
@@ -1089,17 +1085,15 @@ func getBlindedCoefficients(p, bp *iop.Polynomial) []fr.Element {
 }
 
 // commits to a polynomial of the form b*(Xⁿ-1) where b is of small degree
-func commitBlindingFactor(n int, b *iop.Polynomial, key kzg.ProvingKey) curve.G1Affine {
+func commitBlindingFactor(n int, b *iop.Polynomial, key iciclecore.DeviceSlice) curve.G1Affine {
 	cp := b.Coefficients()
 	np := b.Size()
 
 	// lo
-	var tmp curve.G1Affine
-	tmp.MultiExp(key.G1[:np], cp, ecc.MultiExpConfig{})
+	tmp := IcicleCommit(cp, key.RangeTo(np, false))
 
 	// hi
-	var res curve.G1Affine
-	res.MultiExp(key.G1[n:n+np], cp, ecc.MultiExpConfig{})
+	res := IcicleCommit(cp, key.Range(n, n+np, false))
 	res.Sub(&res, &tmp)
 	return res
 }
@@ -1129,21 +1123,21 @@ func coefficients(p []*iop.Polynomial) [][]fr.Element {
 	return res
 }
 
-func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk kzg.ProvingKey) error {
+func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk iciclecore.DeviceSlice) error {
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		proof.H[0], err = kzg.Commit(h1, kzgPk)
+		proof.H[0] = IcicleCommit(h1, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[1], err = kzg.Commit(h2, kzgPk)
+		proof.H[1] = IcicleCommit(h2, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[2], err = kzg.Commit(h3, kzgPk)
+		proof.H[2] = IcicleCommit(h3, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 
