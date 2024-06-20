@@ -305,7 +305,7 @@ func (s *instance) bsb22Hint(_ *big.Int, ins, outs []*big.Int) error {
 	}
 	s.cCommitments[commDepth] = iop.NewPolynomial(&committedValues, iop.Form{Basis: iop.Lagrange, Layout: iop.Regular})
 	coeffs := s.cCommitments[commDepth].Coefficients()
-	s.proof.Bsb22Commitments[commDepth] = IcicleCommit(coeffs, s.pk.KzgLagrangeIcicle.RangeTo(len(coeffs), false))
+	s.proof.Bsb22Commitments[commDepth] = kzg.IcicleCommit(coeffs, s.pk.KzgLagrangeIcicle.RangeTo(len(coeffs), false))
 
 	s.htfFunc.Write(s.proof.Bsb22Commitments[commDepth].Marshal())
 	hashBts := s.htfFunc.Sum(nil)
@@ -450,7 +450,7 @@ func (s *instance) deriveGammaAndBeta() error {
 // and add the contribution of a blinding polynomial b (small degree)
 // /!\ The polynomial p is supposed to be in Lagrange form.
 func (s *instance) commitToPolyAndBlinding(p, b *iop.Polynomial) (commit curve.G1Affine, err error) {
-	commit = IcicleCommit(p.Coefficients(), s.pk.KzgLagrangeIcicle)
+	commit = kzg.IcicleCommit(p.Coefficients(), s.pk.KzgLagrangeIcicle)
 
 	// we add in the blinding contribution
 	n := int(s.domain0.Cardinality)
@@ -601,7 +601,7 @@ func (s *instance) openZ() (err error) {
 	zetaShifted.Mul(&s.zeta, &s.pk.Vk.Generator)
 	s.blindedZ = getBlindedCoefficients(s.x[id_Z], s.bp[id_Bz])
 	// open z at zeta
-	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.Kzg)
+	s.proof.ZShiftedOpening, err = kzg.Open(s.blindedZ, zetaShifted, s.pk.KzgIcicle)
 	if err != nil {
 		return err
 	}
@@ -685,7 +685,7 @@ func (s *instance) computeLinearizedPolynomial() error {
 		s.pk,
 	)
 
-	s.linearizedPolynomialDigest = IcicleCommit(s.linearizedPolynomial, s.pk.KzgIcicle.RangeTo(len(s.linearizedPolynomial), false))
+	s.linearizedPolynomialDigest = kzg.IcicleCommit(s.linearizedPolynomial, s.pk.KzgIcicle.RangeTo(len(s.linearizedPolynomial), false))
 	close(s.chLinearizedPolynomial)
 	return nil
 }
@@ -733,7 +733,7 @@ func (s *instance) batchOpening() error {
 		digestsToOpen,
 		s.zeta,
 		s.kzgFoldingHash,
-		s.pk.Kzg,
+		s.pk.KzgIcicle,
 		s.proof.ZShiftedOpening.ClaimedValue.Marshal(),
 	)
 
@@ -1090,10 +1090,10 @@ func commitBlindingFactor(n int, b *iop.Polynomial, key iciclecore.DeviceSlice) 
 	np := b.Size()
 
 	// lo
-	tmp := IcicleCommit(cp, key.RangeTo(np, false))
+	tmp := kzg.IcicleCommit(cp, key.RangeTo(np, false))
 
 	// hi
-	res := IcicleCommit(cp, key.Range(n, n+np, false))
+	res := kzg.IcicleCommit(cp, key.Range(n, n+np, false))
 	res.Sub(&res, &tmp)
 	return res
 }
@@ -1127,17 +1127,17 @@ func commitToQuotient(h1, h2, h3 []fr.Element, proof *Proof, kzgPk iciclecore.De
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		proof.H[0] = IcicleCommit(h1, kzgPk.RangeTo(len(h3), false))
+		proof.H[0] = kzg.IcicleCommit(h1, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[1] = IcicleCommit(h2, kzgPk.RangeTo(len(h3), false))
+		proof.H[1] = kzg.IcicleCommit(h2, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 
 	g.Go(func() (err error) {
-		proof.H[2] = IcicleCommit(h3, kzgPk.RangeTo(len(h3), false))
+		proof.H[2] = kzg.IcicleCommit(h3, kzgPk.RangeTo(len(h3), false))
 		return
 	})
 

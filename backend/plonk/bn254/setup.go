@@ -28,6 +28,7 @@ import (
 	"github.com/consensys/gnark/constraint"
 	cs "github.com/consensys/gnark/constraint/bn254"
 	iciclecore "github.com/ingonyama-zk/icicle/v2/wrappers/golang/core"
+	iciclebn254 "github.com/ingonyama-zk/icicle/v2/wrappers/golang/curves/bn254"
 )
 
 // VerifyingKey stores the data needed to verify a proof:
@@ -121,8 +122,10 @@ func Setup(spr *cs.SparseR1CS, srs, srsLagrange kzg.SRS) (*ProvingKey, *Verifyin
 
 	pk.Kzg.G1 = srs.Pk.G1[:int(vk.Size)+3]
 	(iciclecore.HostSlice[bn254.G1Affine])(pk.Kzg.G1).CopyToDevice(&pk.KzgIcicle, true)
+	iciclebn254.AffineFromMontgomery(&pk.KzgIcicle)
 	pk.KzgLagrange.G1 = srsLagrange.Pk.G1
 	(iciclecore.HostSlice[bn254.G1Affine])(pk.KzgLagrange.G1).CopyToDevice(&pk.KzgLagrangeIcicle, true)
+	iciclebn254.AffineFromMontgomery(&pk.KzgLagrangeIcicle)
 	vk.Kzg = srs.Vk
 
 	// step 2: ql, qr, qm, qo, qk, qcp in Lagrange Basis
