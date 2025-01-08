@@ -1,7 +1,6 @@
 package sw_bls24315
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"slices"
@@ -29,7 +28,7 @@ type Curve struct {
 func NewCurve(api frontend.API) (*Curve, error) {
 	f, err := emulated.NewField[ScalarField](api)
 	if err != nil {
-		return nil, errors.New("scalar field")
+		return nil, fmt.Errorf("scalar field")
 	}
 	return &Curve{
 		api: api,
@@ -167,7 +166,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	}
 	if !cfg.FoldMulti {
 		if len(P) != len(scalars) {
-			return nil, errors.New("mismatching points and scalars slice lengths")
+			return nil, fmt.Errorf("mismatching points and scalars slice lengths")
 		}
 		// points and scalars must be non-zero
 		n := len(P)
@@ -185,7 +184,7 @@ func (c *Curve) MultiScalarMul(P []*G1Affine, scalars []*Scalar, opts ...algopts
 	} else {
 		// scalars are powers
 		if len(scalars) == 0 {
-			return nil, errors.New("need scalar for folding")
+			return nil, fmt.Errorf("need scalar for folding")
 		}
 		gamma := c.packScalarToVar(scalars[0])
 		// decompose gamma in the endomorphism eigenvalue basis and bit-decompose the sub-scalars
