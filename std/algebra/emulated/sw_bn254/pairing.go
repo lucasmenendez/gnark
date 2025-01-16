@@ -80,24 +80,11 @@ func NewPairing(api frontend.API) (*Pairing, error) {
 	}, nil
 }
 
-
 func (pr Pairing) generators() *G2Affine {
 	if pr.g2gen == nil {
 		_, _, _, g2gen := bn254.Generators()
 		cg2gen := NewG2AffineFixed(g2gen)
 		pr.g2gen = &cg2gen
- 	}
-	return pr.g2gen
-}
-
-// Pair calculates the reduced pairing for a set of points ∏ᵢ e(Pᵢ, Qᵢ).
-//
-// This function checks that the Qᵢ are in the correct subgroup, but does not
-// check Pᵢ. See AssertIsOnG1.
-func (pr Pairing) Pair(P []*G1Affine, Q []*G2Affine) (*GTEl, error) {
-	res, err := pr.MillerLoop(P, Q)
-	if err != nil {
-		return nil, fmt.Errorf("miller loop: %w", err)
 	}
 	return pr.g2gen
 }
